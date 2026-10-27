@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: autoservice-execucao
+  namespace: autoservice-execucao
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: autoservice-execucao
+  template:
+    metadata:
+      labels:
+        app: autoservice-execucao
+    spec:
+      containers:
+        - name: autoservice-execucao
+          image: ghcr.io/autoservice/autoservice-execucao:latest
+          ports:
+            - containerPort: 8083
+          envFrom:
+            - configMapRef:
+                name: autoservice-execucao
+          env:
+            - name: AUTOSERVICE_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: autoservice-execucao
+                  key: AUTOSERVICE_JWT_SECRET
+            - name: SPRING_DATA_MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: autoservice-execucao
+                  key: SPRING_DATA_MONGODB_URI
+            - name: SPRING_RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: autoservice-execucao
+                  key: SPRING_RABBITMQ_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8083
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8083
+            initialDelaySeconds: 40
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 768Mi

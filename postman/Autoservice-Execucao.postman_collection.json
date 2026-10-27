@@ -1,0 +1,52 @@
+{
+  "info": {
+    "name": "Autoservice Execucao",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8083" },
+    { "key": "token", "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImNwZiI6IjM5MDUzMzQ0NzA1IiwiZXhwIjoxODkzNDU2MDAwfQ.esAWLnLoA83kreRAiWZbz2K_jCZ1c4ndLuthywsl-SM" },
+    { "key": "ordemId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Consultar fila",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/execucoes/{{ordemId}}"
+      }
+    },
+    {
+      "name": "Concluir diagnostico",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/execucoes/{{ordemId}}/diagnostico/concluir"
+      }
+    },
+    {
+      "name": "Concluir reparo",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/execucoes/{{ordemId}}/reparo/concluir"
+      }
+    },
+    {
+      "name": "Falhar",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": "{{baseUrl}}/execucoes/{{ordemId}}/falhar",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"motivo\": \"peca indisponivel\"\n}"
+        }
+      }
+    }
+  ]
+}

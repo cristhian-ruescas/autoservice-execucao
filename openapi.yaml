@@ -1,0 +1,93 @@
+openapi: 3.0.3
+info:
+  title: Autoservice Execucao
+  version: 0.0.1
+  description: Fila de diagnostico e reparo.
+servers:
+  - url: http://localhost:8083
+paths:
+  /execucoes/{ordemServicoId}:
+    get:
+      summary: Consulta a fila
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ordemServicoId"
+      responses:
+        "200":
+          description: Fila
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Execucao"
+  /execucoes/{ordemServicoId}/diagnostico/concluir:
+    post:
+      summary: Conclui o diagnostico quando o modo automatico esta desligado
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ordemServicoId"
+      responses:
+        "200":
+          description: Fila atualizada
+  /execucoes/{ordemServicoId}/reparo/concluir:
+    post:
+      summary: Conclui o reparo
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ordemServicoId"
+      responses:
+        "200":
+          description: Fila atualizada
+  /execucoes/{ordemServicoId}/falhar:
+    post:
+      summary: Falha o diagnostico ou o reparo e dispara compensacao
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ordemServicoId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                motivo:
+                  type: string
+      responses:
+        "200":
+          description: Fila atualizada
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ordemServicoId:
+      name: ordemServicoId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    Execucao:
+      type: object
+      properties:
+        ordemServicoId:
+          type: string
+          format: uuid
+        correlationId:
+          type: string
+          format: uuid
+        relato:
+          type: string
+        etapa:
+          type: string
+        motivo:
+          type: string
+        atualizadoEm:
+          type: string
+          format: date-time
