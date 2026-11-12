@@ -25,8 +25,25 @@ management:
     health:
       probes:
         enabled: true
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+  statsd:
+    metrics:
+      export:
+        enabled: ${DD_METRICS_EXPORT:false}
+        host: ${DD_AGENT_HOST:localhost}
+        port: 8125
+        flavor: datadog
+  metrics:
+    tags:
+      env: ${DD_ENV:local}
+      service: ${DD_SERVICE:autoservice-execucao}
+      application: ${spring.application.name}
 
 autoservice:
+  metrics:
+    publish-interval-ms: ${AUTOSERVICE_METRICS_PUBLISH_INTERVAL_MS:60000}
   jwt:
     secret: ${AUTOSERVICE_JWT_SECRET:dev-secret-change-me-please-32b}
   execucao:

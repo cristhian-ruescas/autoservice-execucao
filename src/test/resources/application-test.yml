@@ -1,0 +1,5 @@
+DD_METRICS_EXPORT: "false"
+spring:
+  task:
+    scheduling:
+      enabled: false

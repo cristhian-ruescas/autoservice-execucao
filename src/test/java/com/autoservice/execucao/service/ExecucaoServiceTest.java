@@ -122,7 +122,13 @@ class ExecucaoServiceTest {
     }
 
     private ExecucaoService service(final boolean automatica, final boolean falhar) {
-        return new ExecucaoService(this.memoria, this.mensagemSaga, automatica, falhar);
+        return new ExecucaoService(
+                this.memoria,
+                this.mensagemSaga,
+                new com.autoservice.execucao.observability.ExecucaoMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()),
+                automatica,
+                falhar
+        );
     }
 
     private EventoSaga evento(final String tipo, final Map<String, Object> payload) {
