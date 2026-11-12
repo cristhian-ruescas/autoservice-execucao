@@ -27,6 +27,8 @@ Porta `8083`. Mongo local em `mongodb://localhost:27017/autoservice_execucao`. S
 
 A malha completa está no Compose de `autoservice-os`.
 
+Observabilidade Datadog (dashboard/monitors compartilhados): repositório `autoservice-os`, pasta `docs/observability/`.
+
 ## Kubernetes
 
 ```bash
