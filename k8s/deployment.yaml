@@ -12,6 +12,10 @@ spec:
     metadata:
       labels:
         app: autoservice-execucao
+        tags.datadoghq.com/env: homolog
+        tags.datadoghq.com/service: autoservice-execucao
+      annotations:
+        ad.datadoghq.com/autoservice-execucao.logs: '[{"source":"java","service":"autoservice-execucao"}]'
     spec:
       containers:
         - name: autoservice-execucao
@@ -22,6 +26,10 @@ spec:
             - configMapRef:
                 name: autoservice-execucao
           env:
+            - name: DD_AGENT_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
             - name: AUTOSERVICE_JWT_SECRET
               valueFrom:
                 secretKeyRef:

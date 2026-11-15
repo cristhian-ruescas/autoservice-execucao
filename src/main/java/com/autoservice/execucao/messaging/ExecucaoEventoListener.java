@@ -1,6 +1,7 @@
 package com.autoservice.execucao.messaging;
 
 import com.autoservice.execucao.config.RabbitConfig;
+import com.autoservice.execucao.observability.SagaEventMdc;
 import com.autoservice.execucao.service.ExecucaoService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +24,7 @@ public class ExecucaoEventoListener {
         if (evento == null || evento.eventType() == null) {
             return;
         }
+        SagaEventMdc.apply(evento);
         try {
             switch (evento.eventType()) {
                 case TiposEvento.DIAGNOSTICO_SOLICITADO -> this.execucaoService.solicitarDiagnostico(evento);
@@ -33,6 +35,8 @@ public class ExecucaoEventoListener {
             }
         } catch (RuntimeException exception) {
             LOGGER.error("Falha ao tratar evento {}", evento.eventId(), exception);
+        } finally {
+            SagaEventMdc.clear();
         }
     }
 }

@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = ExecucaoController.class)
-@Import({SecurityConfig.class, JwtService.class, ApiExceptionHandler.class})
+@Import({SecurityConfig.class, JwtService.class, ApiExceptionHandler.class, com.autoservice.execucao.observability.ObservabilityWebMvcTestConfig.class})
 @TestPropertySource(properties = "autoservice.jwt.secret=test-secret-test-secret-test-secret")
 class ExecucaoApiTest {
 

@@ -9,6 +9,7 @@ import com.autoservice.execucao.domain.NegocioException;
 import com.autoservice.execucao.messaging.EventoSaga;
 import com.autoservice.execucao.messaging.MensagemSaga;
 import com.autoservice.execucao.messaging.TiposEvento;
+import com.autoservice.execucao.observability.ExecucaoMetrics;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -23,15 +24,18 @@ public class ExecucaoService {
     private final MensagemSaga mensagemSaga;
     private final boolean automatica;
     private final boolean falharAutomatico;
+    private final ExecucaoMetrics metrics;
 
     public ExecucaoService(
             final FilaStore filaStore,
             final MensagemSaga mensagemSaga,
+            final ExecucaoMetrics metrics,
             @Value("${autoservice.execucao.automatica:true}") final boolean automatica,
             @Value("${autoservice.execucao.falhar:false}") final boolean falharAutomatico
     ) {
         this.filaStore = filaStore;
         this.mensagemSaga = mensagemSaga;
+        this.metrics = metrics;
         this.automatica = automatica;
         this.falharAutomatico = falharAutomatico;
     }
@@ -52,6 +56,7 @@ public class ExecucaoService {
                 Instant.now()
         );
         this.filaStore.salvar(fila);
+        this.metrics.registrarEtapa("em_diagnostico");
         if (this.automatica) {
             concluirDiagnostico(evento.ordemServicoId());
         }
@@ -66,6 +71,7 @@ public class ExecucaoService {
         fila.setAtualizadoEm(Instant.now());
         this.filaStore.salvar(fila);
         publicar(TiposEvento.DIAGNOSTICO_CONCLUIDO, fila, Map.of());
+        this.metrics.registrarEtapa("diagnostico_concluido");
         return ExecucaoResponse.de(fila);
     }
 
@@ -89,6 +95,7 @@ public class ExecucaoService {
         fila.setEtapa(EtapaExecucao.EM_REPARO);
         fila.setAtualizadoEm(Instant.now());
         this.filaStore.salvar(fila);
+        this.metrics.registrarEtapa("em_reparo");
         if (this.falharAutomatico) {
             falhar(fila.getOrdemServicoId(), "falha automatica");
         } else if (this.automatica) {
@@ -108,6 +115,7 @@ public class ExecucaoService {
         fila.setAtualizadoEm(Instant.now());
         this.filaStore.salvar(fila);
         publicar(TiposEvento.EXECUCAO_CONCLUIDA, fila, Map.of());
+        this.metrics.registrarEtapa("reparo_concluido");
         return ExecucaoResponse.de(fila);
     }
 
@@ -126,6 +134,7 @@ public class ExecucaoService {
         fila.setAtualizadoEm(Instant.now());
         this.filaStore.salvar(fila);
         publicar(diagnostico ? TiposEvento.DIAGNOSTICO_FALHOU : TiposEvento.EXECUCAO_FALHOU, fila, Map.of("motivo", texto));
+        this.metrics.registrarEtapa("falhou");
         return ExecucaoResponse.de(fila);
     }
 
@@ -140,6 +149,7 @@ public class ExecucaoService {
         fila.setEtapa(EtapaExecucao.LIBERADA);
         fila.setAtualizadoEm(Instant.now());
         this.filaStore.salvar(fila);
+        this.metrics.registrarEtapa("liberada");
     }
 
     public ExecucaoResponse consultar(final UUID ordemServicoId) {
