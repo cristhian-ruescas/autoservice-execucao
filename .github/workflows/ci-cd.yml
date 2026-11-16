@@ -1,0 +1,193 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  APP_NAME: autoservice-execucao
+  APP_NAMESPACE: autoservice-execucao
+  APP_PORT: "8083"
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+
+      - name: Ensure Maven Wrapper is executable
+        run: chmod +x ./mvnw
+
+      - name: Run tests
+        run: ./mvnw -B verify --no-transfer-progress
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: target/surefire-reports/
+          retention-days: 7
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Validate Kubernetes manifests
+        run: |
+          set -euo pipefail
+          kubectl kustomize k8s > /tmp/k8s-rendered.yaml
+          test -s /tmp/k8s-rendered.yaml
+
+  sonar:
+    name: Sonar
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+
+      - name: Ensure Maven Wrapper is executable
+        run: chmod +x ./mvnw
+
+      - name: Run SonarCloud
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "SONAR_TOKEN ausente; quality gate remoto ignorado"
+            exit 0
+          fi
+          ./mvnw -B sonar:sonar -Dsonar.token="$SONAR_TOKEN"
+
+  docker:
+    name: Docker Build & Push
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=sha-,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy (Kubernetes)
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image for Kind
+        run: docker build -f docker/Dockerfile -t ${{ env.APP_NAME }}:ci .
+
+      - name: Create Kind cluster
+        uses: helm/kind-action@v1.12.0
+        with:
+          cluster_name: autoservice-ci
+
+      - name: Load image into Kind
+        run: kind load docker-image ${{ env.APP_NAME }}:ci --name autoservice-ci
+
+      - name: Apply namespace and dependencies
+        run: |
+          set -euo pipefail
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/ci/deps.yaml
+          kubectl -n "${APP_NAMESPACE}" rollout status deployment/mongodb --timeout=180s
+          kubectl -n "${APP_NAMESPACE}" rollout status deployment/rabbitmq --timeout=180s
+
+      - name: Create Secret
+        run: |
+          set -euo pipefail
+          kubectl -n "${APP_NAMESPACE}" create secret generic "${APP_NAME}" \
+            --from-literal=AUTOSERVICE_JWT_SECRET=dev-secret-change-me-please-32b \
+            --from-literal=SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/autoservice_execucao \
+            --from-literal=SPRING_RABBITMQ_PASSWORD=guest \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Apply application manifests
+        run: |
+          set -euo pipefail
+          kubectl apply -k k8s
+          kubectl -n "${APP_NAMESPACE}" patch configmap "${APP_NAME}" --type merge -p '{"data":{"EXECUCAO_AUTOMATICA":"true","DD_TRACE_ENABLED":"false","DD_METRICS_EXPORT":"false"}}'
+          kubectl -n "${APP_NAMESPACE}" set image "deployment/${APP_NAME}" "${APP_NAME}=${APP_NAME}:ci"
+          kubectl -n "${APP_NAMESPACE}" patch "deployment/${APP_NAME}" --type json -p '[{"op":"add","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"Never"}]'
+
+      - name: Wait for rollout
+        run: kubectl -n "${APP_NAMESPACE}" rollout status "deployment/${APP_NAME}" --timeout=300s
+
+      - name: Validate health
+        run: |
+          set -euo pipefail
+          kubectl -n "${APP_NAMESPACE}" get pods,svc,hpa
+          kubectl -n "${APP_NAMESPACE}" port-forward "svc/${APP_NAME}" 8080:${APP_PORT} >/tmp/pf.log 2>&1 &
+          sleep 5
+          curl -fsS "http://127.0.0.1:8080/actuator/health"
