@@ -1,16 +1,18 @@
 # autoservice-execucao
 
-Fila de diagnóstico e reparo. O documento da fila fica no MongoDB (`fila_execucao`). O serviço não abre conexão com o PostgreSQL dos outros dois.
+Microsserviço da fila de diagnóstico e reparo. Persistência em **MongoDB** (`fila_execucao`). Não abre conexão com os PostgreSQL dos outros serviços.
 
 ## Fluxo
 
-- `diagnostico.solicitado` abre a fila em `EM_DIAGNOSTICO`.
-- `execucao.solicitada` passa para o reparo.
-- `compensacao.fila.liberar` marca a fila como `LIBERADA`.
+- `diagnostico.solicitado` → etapa `EM_DIAGNOSTICO`
+- `execucao.solicitada` → reparo
+- `compensacao.fila.liberar` → `LIBERADA`
 
-Com `EXECUCAO_AUTOMATICA=true` (padrão do Compose) o diagnóstico e o reparo concluem sozinhos e publicam `diagnostico.concluido` e `execucao.concluida`. Com `EXECUCAO_FALHAR=true`, o reparo publica `execucao.falhou` para a OS compensar o pagamento.
+Com `EXECUCAO_AUTOMATICA=true` (padrão do Compose), diagnóstico e reparo concluem sozinhos (`diagnostico.concluido` / `execucao.concluida`).
 
-Com os dois flags desligados, o mecânico usa:
+Com `EXECUCAO_FALHAR=true`, o reparo publica `execucao.falhou` para a OS compensar.
+
+Com flags desligados, use:
 
 - `POST /execucoes/{id}/diagnostico/concluir`
 - `POST /execucoes/{id}/reparo/concluir`
@@ -23,16 +25,20 @@ Com os dois flags desligados, o mecânico usa:
 ./mvnw spring-boot:run
 ```
 
-Porta `8083`. Mongo local em `mongodb://localhost:27017/autoservice_execucao`. Swagger em `/swagger-ui.html`. OpenAPI em `openapi.yaml`. Collection em `postman/`.
+Porta `8083`. Mongo local: `mongodb://localhost:27017/autoservice_execucao`.
 
-A malha completa está no Compose de `autoservice-os`.
+Swagger: `/swagger-ui.html`. OpenAPI: `openapi.yaml`. Postman: `postman/`.
 
-Observabilidade Datadog (dashboard/monitors compartilhados): repositório `autoservice-os`, pasta `docs/observability/`.
+Malha completa: Compose em `autoservice-os/docker`.
 
-## Kubernetes
+Observabilidade (Datadog): hub em `autoservice-os/docs/observability/`.
+
+## CI/CD e Kubernetes
+
+Pipeline em `.github/workflows/` (testes, qualidade, imagem, deploy).
 
 ```bash
 kubectl kustomize k8s
 ```
 
-A URI do Mongo fica no Secret de exemplo, não no ConfigMap. O apply no cluster continua dependendo da AWS da fase 3.
+URI do Mongo fica no Secret de exemplo (`k8s/secret.example.yaml`), não no ConfigMap.
