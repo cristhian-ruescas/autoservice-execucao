@@ -1,20 +1,40 @@
-# autoservice-execucao
+# autoservice-execucao — Fase 4
 
-Fila de diagnóstico e reparo. O documento da fila fica no MongoDB (`fila_execucao`). O serviço não abre conexão com o PostgreSQL dos outros dois.
+Microsserviço da **fila de diagnóstico e reparo**. Persistência em **MongoDB** (`fila_execucao`). Sem conexão com os PostgreSQL dos outros serviços.
+
+Parte da entrega **Fase 4** (saga + compensação).
+
+## Qualidade
+
+| Item | Status |
+|------|--------|
+| Testes | `./mvnw verify` |
+| Cobertura | JaCoCo **≥ 80%** (gate no build) |
+| OpenAPI | [`openapi.yaml`](./openapi.yaml) · Swagger `/swagger-ui.html` |
+| Postman | `postman/` |
+| CI/CD | `.github/workflows/ci-cd.yml` — Test → Docker → Deploy Kind + health |
+| Lint / qualidade | pipeline + Sonar (quando `SONAR_TOKEN` presente) |
 
 ## Fluxo
 
-- `diagnostico.solicitado` abre a fila em `EM_DIAGNOSTICO`.
-- `execucao.solicitada` passa para o reparo.
-- `compensacao.fila.liberar` marca a fila como `LIBERADA`.
+- `diagnostico.solicitado` → etapa `EM_DIAGNOSTICO`
+- `execucao.solicitada` → reparo
+- `compensacao.fila.liberar` → `LIBERADA`
 
-Com `EXECUCAO_AUTOMATICA=true` (padrão do Compose) o diagnóstico e o reparo concluem sozinhos e publicam `diagnostico.concluido` e `execucao.concluida`. Com `EXECUCAO_FALHAR=true`, o reparo publica `execucao.falhou` para a OS compensar o pagamento.
+Flags:
 
-Com os dois flags desligados, o mecânico usa:
+| Variável | Efeito |
+|----------|--------|
+| `EXECUCAO_AUTOMATICA=true` | Diagnóstico/reparo concluem sozinhos (Compose) |
+| `EXECUCAO_AUTOMATICA=false` | Demo manual pelos endpoints abaixo |
+| `EXECUCAO_FALHAR=true` | Reparo publica `execucao.falhou` (compensa) |
+
+Endpoints manuais:
 
 - `POST /execucoes/{id}/diagnostico/concluir`
 - `POST /execucoes/{id}/reparo/concluir`
 - `POST /execucoes/{id}/falhar`
+- `GET /execucoes/{id}`
 
 ## Rodar
 
@@ -23,16 +43,16 @@ Com os dois flags desligados, o mecânico usa:
 ./mvnw spring-boot:run
 ```
 
-Porta `8083`. Mongo local em `mongodb://localhost:27017/autoservice_execucao`. Swagger em `/swagger-ui.html`. OpenAPI em `openapi.yaml`. Collection em `postman/`.
+Porta `8083`. Mongo local: `mongodb://localhost:27017/autoservice_execucao`.
 
-A malha completa está no Compose de `autoservice-os`.
+Malha completa: Compose em `autoservice-os/docker`.
 
-Observabilidade Datadog (dashboard/monitors compartilhados): repositório `autoservice-os`, pasta `docs/observability/`.
+Observabilidade: hub em `autoservice-os/docs/observability/`.
 
-## Kubernetes
+## CI/CD e Kubernetes
 
 ```bash
 kubectl kustomize k8s
 ```
 
-A URI do Mongo fica no Secret de exemplo, não no ConfigMap. O apply no cluster continua dependendo da AWS da fase 3.
+URI do Mongo no Secret de exemplo (`k8s/secret.example.yaml`), não no ConfigMap.
