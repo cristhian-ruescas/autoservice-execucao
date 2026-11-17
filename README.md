@@ -1,6 +1,19 @@
-# autoservice-execucao
+# autoservice-execucao — Fase 4
 
-Microsserviço da fila de diagnóstico e reparo. Persistência em **MongoDB** (`fila_execucao`). Não abre conexão com os PostgreSQL dos outros serviços.
+Microsserviço da **fila de diagnóstico e reparo**. Persistência em **MongoDB** (`fila_execucao`). Sem conexão com os PostgreSQL dos outros serviços.
+
+Parte da entrega **Fase 4** (saga + compensação).
+
+## Qualidade
+
+| Item | Status |
+|------|--------|
+| Testes | `./mvnw verify` |
+| Cobertura | JaCoCo **≥ 80%** (gate no build) |
+| OpenAPI | [`openapi.yaml`](./openapi.yaml) · Swagger `/swagger-ui.html` |
+| Postman | `postman/` |
+| CI/CD | `.github/workflows/ci-cd.yml` — Test → Docker → Deploy Kind + health |
+| Lint / qualidade | pipeline + Sonar (quando `SONAR_TOKEN` presente) |
 
 ## Fluxo
 
@@ -8,15 +21,20 @@ Microsserviço da fila de diagnóstico e reparo. Persistência em **MongoDB** (`
 - `execucao.solicitada` → reparo
 - `compensacao.fila.liberar` → `LIBERADA`
 
-Com `EXECUCAO_AUTOMATICA=true` (padrão do Compose), diagnóstico e reparo concluem sozinhos (`diagnostico.concluido` / `execucao.concluida`).
+Flags:
 
-Com `EXECUCAO_FALHAR=true`, o reparo publica `execucao.falhou` para a OS compensar.
+| Variável | Efeito |
+|----------|--------|
+| `EXECUCAO_AUTOMATICA=true` | Diagnóstico/reparo concluem sozinhos (Compose) |
+| `EXECUCAO_AUTOMATICA=false` | Demo manual pelos endpoints abaixo |
+| `EXECUCAO_FALHAR=true` | Reparo publica `execucao.falhou` (compensa) |
 
-Com flags desligados, use:
+Endpoints manuais:
 
 - `POST /execucoes/{id}/diagnostico/concluir`
 - `POST /execucoes/{id}/reparo/concluir`
 - `POST /execucoes/{id}/falhar`
+- `GET /execucoes/{id}`
 
 ## Rodar
 
@@ -27,18 +45,14 @@ Com flags desligados, use:
 
 Porta `8083`. Mongo local: `mongodb://localhost:27017/autoservice_execucao`.
 
-Swagger: `/swagger-ui.html`. OpenAPI: `openapi.yaml`. Postman: `postman/`.
-
 Malha completa: Compose em `autoservice-os/docker`.
 
-Observabilidade (Datadog): hub em `autoservice-os/docs/observability/`.
+Observabilidade: hub em `autoservice-os/docs/observability/`.
 
 ## CI/CD e Kubernetes
-
-Pipeline em `.github/workflows/` (testes, qualidade, imagem, deploy).
 
 ```bash
 kubectl kustomize k8s
 ```
 
-URI do Mongo fica no Secret de exemplo (`k8s/secret.example.yaml`), não no ConfigMap.
+URI do Mongo no Secret de exemplo (`k8s/secret.example.yaml`), não no ConfigMap.

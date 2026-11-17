@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Autoservice Execucao
   version: 0.0.1
-  description: Fila de diagnostico e reparo.
+  description: Fase 4 — fila de diagnostico e reparo (saga / compensacao).
 servers:
   - url: http://localhost:8083
 paths:
